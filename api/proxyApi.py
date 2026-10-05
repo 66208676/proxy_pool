@@ -16,7 +16,11 @@
 """
 __author__ = 'JHao'
 
+import os
 import platform
+import re
+import time
+
 from werkzeug.wrappers import Response
 from flask import Flask, jsonify, request
 
@@ -28,6 +32,164 @@ from handler.configHandler import ConfigHandler
 app = Flask(__name__)
 conf = ConfigHandler()
 proxy_handler = ProxyHandler()
+
+# ---------------------------------------------------------------- 控制台相关
+# 新增：/dashboard 系列接口（本地控制台 UI），不改动原有 API 行为。
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+API_DIR = os.path.dirname(os.path.abspath(__file__))
+LOG_DIR = os.path.join(BASE_DIR, "log")
+
+# 实测出口 IP 用的回显地址。固定写死，不接受调用方传入 URL，
+# 避免这个接口被当成任意请求转发器。
+ECHO_URL = "https://myip.ipip.net"
+IP_RE = re.compile(r"(\d{1,3}(?:\.\d{1,3}){3})")
+
+
+def _tail_lines(path, nbytes=200000):
+    """读文件末尾若干字节并按行切分（日志文件可能很大）。"""
+    try:
+        size = os.path.getsize(path)
+        with open(path, "rb") as f:
+            if size > nbytes:
+                f.seek(-nbytes, os.SEEK_END)
+                f.readline()  # 丢掉可能被截断的半行
+            return f.read().decode("utf-8", "ignore").splitlines()
+    except OSError:
+        return []
+
+
+def _pid_alive(pid):
+    if not pid:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def _scheduler_state():
+    """从 log/ 和 PID 文件推断调度器状态，不需要额外的进程间通信。"""
+    pid = None
+    try:
+        with open(os.path.join(LOG_DIR, "schedule.pid")) as f:
+            pid = int(f.read().strip())
+    except (OSError, ValueError):
+        pass
+
+    started = next_run = last_check = None
+    for line in _tail_lines(os.path.join(LOG_DIR, "scheduler.log")):
+        if "Scheduler started" in line:
+            started = line[:19]
+        m = re.search(r"Next wakeup is due at (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})", line)
+        if m:
+            next_run = m.group(1)
+
+    for line in reversed(_tail_lines(os.path.join(LOG_DIR, "checker.log"))):
+        m = re.match(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})", line)
+        if m:
+            last_check = m.group(1)
+            break
+
+    return {
+        "running": _pid_alive(pid),
+        "pid": pid,
+        "started": started,
+        "next_run": next_run,
+        "last_check": last_check,
+    }
+
+
+@app.route("/dashboard")
+def dashboard():
+    """本地控制台页面（与 API 同源，避免浏览器跨域限制）。"""
+    path = os.path.join(API_DIR, "dashboard.html")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            html = f.read()
+    except OSError:
+        return Response("dashboard.html 缺失", status=500, mimetype="text/plain")
+    return Response(html, mimetype="text/html; charset=utf-8")
+
+
+@app.route("/dashboard/stats")
+def dashboard_stats():
+    proxies = proxy_handler.getAll()
+    https_count = sum(1 for p in proxies if p.https)
+    sources = {}
+    for p in proxies:
+        for s in (p.source or "").split("/"):
+            if s:
+                sources[s] = sources.get(s, 0) + 1
+    return {
+        "count": len(proxies),
+        "https": https_count,
+        "http": len(proxies) - https_count,
+        "sources": sources,
+        "scheduler": _scheduler_state(),
+        "server_time": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+
+@app.route("/dashboard/proxies")
+def dashboard_proxies():
+    """分页 + 搜索的代理列表。3400 条一次性传给浏览器太重，所以服务端分页。"""
+    keyword = request.args.get("q", "").strip().lower()
+    only_https = request.args.get("https", "").lower() == "true"
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+    except ValueError:
+        page = 1
+    try:
+        size = min(500, max(10, int(request.args.get("size", 50))))
+    except ValueError:
+        size = 50
+
+    rows = proxy_handler.getAll()
+    if only_https:
+        rows = [p for p in rows if p.https]
+    if keyword:
+        rows = [p for p in rows if keyword in (p.proxy or "").lower()]
+
+    total = len(rows)
+    start = (page - 1) * size
+    return {
+        "total": total,
+        "page": page,
+        "size": size,
+        "items": [p.to_dict for p in rows[start:start + size]],
+    }
+
+
+@app.route("/dashboard/test")
+def dashboard_test():
+    """通过指定代理真实发一次请求，返回出口 IP。用于验证代理是否真的可用。"""
+    target = request.args.get("proxy", "").strip()
+    if not target:
+        return {"ok": False, "error": "缺少 proxy 参数"}
+
+    import requests
+
+    session = requests.Session()
+    session.trust_env = False  # 忽略本机透明代理
+    url = "http://" + target
+    t0 = time.time()
+    try:
+        resp = session.get(ECHO_URL, timeout=15,
+                           proxies={"http": url, "https": url})
+        match = IP_RE.search(resp.text)
+        return {
+            "ok": True,
+            "exit_ip": match.group(1) if match else "",
+            "raw": resp.text.strip(),
+            "elapsed": round(time.time() - t0, 2),
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "error": "%s: %s" % (type(exc).__name__, exc),
+            "elapsed": round(time.time() - t0, 2),
+        }
 
 
 class JsonResponse(Response):
@@ -42,6 +204,7 @@ class JsonResponse(Response):
 app.response_class = JsonResponse
 
 api_list = [
+    {"url": "/dashboard", "params": "", "desc": "本地控制台（网页 UI）"},
     {"url": "/get", "params": "type: ''https'|''", "desc": "get a proxy"},
     {"url": "/pop", "params": "", "desc": "get and delete a proxy"},
     {"url": "/delete", "params": "proxy: 'e.g. 127.0.0.1:8080'", "desc": "delete an unable proxy"},

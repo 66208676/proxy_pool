@@ -59,7 +59,7 @@ def formatValidator(proxy):
 def httpTimeOutValidator(proxy):
     """ http检测超时 """
 
-    proxies = {"http": "http://{proxy}".format(proxy=proxy), "https": "https://{proxy}".format(proxy=proxy)}
+    proxies = {"http": "http://{proxy}".format(proxy=proxy), "https": "http://{proxy}".format(proxy=proxy)}
 
     try:
         r = head(conf.httpUrl, headers=HEADER, proxies=proxies, timeout=conf.verifyTimeout)
@@ -70,9 +70,15 @@ def httpTimeOutValidator(proxy):
 
 @ProxyValidator.addHttpsValidator
 def httpsTimeOutValidator(proxy):
-    """https检测超时"""
+    """https检测超时
 
-    proxies = {"http": "http://{proxy}".format(proxy=proxy), "https": "https://{proxy}".format(proxy=proxy)}
+    注意：代理地址的 scheme 必须是 http:// —— 它表示"如何连接代理服务器本身"，
+    而不是"目标站点的协议"。upstream 原本写成 https://{proxy}，会让 requests
+    尝试对明文 HTTP 代理发起 TLS 握手，导致所有代理的 https 校验都 ProxyError。
+    对于需要 TLS 连接代理自身的场景（极少见），请自行改回 https://。
+    """
+
+    proxies = {"http": "http://{proxy}".format(proxy=proxy), "https": "http://{proxy}".format(proxy=proxy)}
     try:
         r = head(conf.httpsUrl, headers=HEADER, proxies=proxies, timeout=conf.verifyTimeout, verify=False)
         return True if r.status_code == 200 else False

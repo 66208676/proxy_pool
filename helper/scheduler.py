@@ -47,12 +47,17 @@ def __runProxyCheck():
 def runScheduler():
     __runProxyFetch()
 
-    timezone = ConfigHandler().timezone
+    conf = ConfigHandler()
+    timezone = conf.timezone
     scheduler_log = LogHandler("scheduler")
     scheduler = BlockingScheduler(logger=scheduler_log, timezone=timezone)
 
-    scheduler.add_job(__runProxyFetch, 'interval', minutes=5, id="proxy_fetch", name="proxy采集")
-    scheduler.add_job(__runProxyCheck, 'interval', minutes=2, id="proxy_check", name="proxy检查")
+    scheduler.add_job(__runProxyFetch, 'interval',
+                      minutes=conf.fetchIntervalMinutes,
+                      id="proxy_fetch", name="proxy采集")
+    scheduler.add_job(__runProxyCheck, 'interval',
+                      minutes=conf.checkIntervalMinutes,
+                      id="proxy_check", name="proxy检查")
     executors = {
         'default': {'type': 'threadpool', 'max_workers': 20},
         'processpool': ProcessPoolExecutor(max_workers=5)
@@ -62,7 +67,12 @@ def runScheduler():
         'max_instances': 10
     }
 
-    scheduler.configure(executors=executors, job_defaults=job_defaults, timezone=timezone)
+    # configure() 会把 self._logger 重置为 logging.getLogger('apscheduler.scheduler')，
+    # 那个 logger 没有任何 handler，INFO 级别的 "Scheduler started" / "Added job"
+    # 会被静默丢弃（Python 的 lastResort handler 只输出 WARNING 及以上）。
+    # 显式把 logger 传进来，调度器的排期决策才会出现在 log/scheduler.log 里。
+    scheduler.configure(executors=executors, job_defaults=job_defaults,
+                        timezone=timezone, logger=scheduler_log)
 
     scheduler.start()
 

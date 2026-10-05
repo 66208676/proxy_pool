@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>代理池控制台</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --panel:#ffffff; --border:#e3e6ea; --border-strong:#d2d7dd;
+    --text:#1f2430; --text-dim:#6b7280; --text-faint:#9aa2ad;
+    --accent:#2563eb; --accent-soft:#eff4ff;
+    --ok:#0f9d58; --ok-soft:#e9f7ef;
+    --warn:#c77700; --warn-soft:#fdf3e3;
+    --bad:#d93025; --bad-soft:#fdecea;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--text);
+    font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 60px}
+
+  header{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+  header h1{font-size:19px;margin:0;font-weight:650;letter-spacing:.2px}
+  header .sub{color:var(--text-faint);font-size:12.5px}
+  header .spacer{flex:1}
+
+  .btn{
+    appearance:none;border:1px solid var(--border-strong);background:var(--panel);
+    color:var(--text);border-radius:7px;padding:7px 13px;font-size:13px;cursor:pointer;
+    font-family:inherit;transition:.12s;white-space:nowrap;
+  }
+  .btn:hover{background:#f7f8fa;border-color:#c2c8d0}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover{background:#1d4fd8}
+  .btn.sm{padding:4px 9px;font-size:12px;border-radius:6px}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.ghost{border-color:transparent;background:transparent;color:var(--text-dim)}
+  .btn.ghost:hover{background:#eceef2;color:var(--text)}
+
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:11px;padding:14px 16px}
+  .card .k{font-size:12px;color:var(--text-dim);margin-bottom:6px;letter-spacing:.3px}
+  .card .v{font-size:24px;font-weight:650;font-variant-numeric:tabular-nums;line-height:1.15}
+  .card .v small{font-size:13px;font-weight:500;color:var(--text-faint);margin-left:3px}
+
+  .bar{
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    background:var(--panel);border:1px solid var(--border);border-radius:11px;
+    padding:11px 14px;margin-bottom:12px;font-size:13px;
+  }
+  .dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
+  .dot.ok{background:var(--ok);box-shadow:0 0 0 3px var(--ok-soft)}
+  .dot.bad{background:var(--bad);box-shadow:0 0 0 3px var(--bad-soft)}
+  .bar .sep{width:1px;height:16px;background:var(--border);margin:0 2px}
+  .bar b{font-weight:600}
+
+  .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+  input[type=search],input[type=text],select{
+    border:1px solid var(--border-strong);border-radius:7px;padding:7px 11px;font-size:13px;
+    font-family:inherit;background:var(--panel);color:var(--text);outline:none;
+  }
+  input[type=search]{width:260px}
+  input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  label.chk{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-dim);cursor:pointer;user-select:none}
+  label.chk input{accent-color:var(--accent);cursor:pointer}
+
+  .tablecard{background:var(--panel);border:1px solid var(--border);border-radius:11px;overflow:hidden}
+  .scroll{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{
+    text-align:left;font-weight:600;color:var(--text-dim);font-size:12px;
+    padding:10px 12px;border-bottom:1px solid var(--border);background:#fafbfc;
+    white-space:nowrap;position:sticky;top:0;z-index:1;
+  }
+  td{padding:9px 12px;border-bottom:1px solid #f0f2f4;vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:#fafbfc}
+  .px{font-family:var(--mono);font-size:12.5px;word-break:break-all}
+  .px .auth{color:var(--text-faint)}
+  .px .ipport{color:var(--text);font-weight:550}
+  .num{font-variant-numeric:tabular-nums;color:var(--text-dim);text-align:right}
+  .tnum{font-variant-numeric:tabular-nums;color:var(--text-faint);font-size:12px;white-space:nowrap}
+  .tag{
+    display:inline-block;padding:1px 7px;border-radius:5px;font-size:11.5px;font-weight:600;
+    border:1px solid transparent;white-space:nowrap;
+  }
+  .tag.https{background:var(--ok-soft);color:#0b7a44;border-color:#c8e9d6}
+  .tag.http{background:var(--warn-soft);color:#9a5b00;border-color:#f0dcbb}
+  .tag.src{background:#f1f3f6;color:var(--text-dim);border-color:#e3e6ea;font-weight:500}
+  .acts{display:flex;gap:5px;justify-content:flex-end}
+
+  .pager{display:flex;align-items:center;gap:8px;justify-content:center;padding:12px;font-size:13px;color:var(--text-dim);flex-wrap:wrap}
+  .pager .btn{padding:4px 10px;font-size:12.5px}
+  .pager .now{font-variant-numeric:tabular-nums;color:var(--text);font-weight:600}
+
+  .empty{padding:46px 20px;text-align:center;color:var(--text-faint)}
+
+  #toast{
+    position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(14px);
+    background:#232936;color:#fff;padding:9px 16px;border-radius:9px;font-size:13px;
+    opacity:0;pointer-events:none;transition:.2s;z-index:99;max-width:80vw;text-align:center;
+  }
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  .mono-box{
+    font-family:var(--mono);font-size:12.5px;background:#f7f8fa;border:1px solid var(--border);
+    border-radius:7px;padding:8px 11px;word-break:break-all;color:var(--text);
+  }
+  dialog{
+    border:1px solid var(--border);border-radius:12px;padding:0;max-width:560px;width:92vw;
+    box-shadow:0 18px 50px rgba(20,25,40,.16);color:var(--text);
+  }
+  dialog::backdrop{background:rgba(24,28,38,.35)}
+  dialog .dh{padding:14px 18px;border-bottom:1px solid var(--border);font-weight:650;font-size:14.5px}
+  dialog .db{padding:16px 18px;display:flex;flex-direction:column;gap:11px}
+  dialog .df{padding:12px 18px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+  .kv{display:grid;grid-template-columns:76px 1fr;gap:6px 12px;font-size:13px;align-items:baseline}
+  .kv .k{color:var(--text-dim)}
+  .result{padding:10px 12px;border-radius:8px;font-size:13px;line-height:1.6}
+  .result.ok{background:var(--ok-soft);color:#0b7a44;border:1px solid #c8e9d6}
+  .result.bad{background:var(--bad-soft);color:#a5261d;border:1px solid #f3cdc9}
+  .result.wait{background:#f1f3f6;color:var(--text-dim);border:1px solid var(--border)}
+
+  @media (max-width:820px){
+    .grid{grid-template-columns:repeat(2,1fr)}
+    input[type=search]{width:100%}
+    .wrap{padding:16px 12px 50px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <h1>代理池控制台</h1>
+      <div class="sub" id="subline">正在连接…</div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn primary" id="btnPick">随机取一个</button>
+    <button class="btn" id="btnRefresh">刷新</button>
+  </header>
+
+  <div class="grid">
+    <div class="card"><div class="k">池内代理</div><div class="v" id="sTotal">—</div></div>
+    <div class="card"><div class="k">支持 HTTPS</div><div class="v" id="sHttps">—</div></div>
+    <div class="card"><div class="k">仅 HTTP</div><div class="v" id="sHttp">—</div></div>
+    <div class="card"><div class="k">最近一次校验</div><div class="v" id="sCheck" style="font-size:16px;font-weight:600;padding-top:5px">—</div></div>
+  </div>
+
+  <div class="bar">
+    <span class="dot" id="dotSched"></span>
+    <span id="schedText">调度器状态未知</span>
+    <span class="sep"></span>
+    <span id="nextRunText" style="color:var(--text-dim)">—</span>
+    <span class="sep"></span>
+    <span style="color:var(--text-faint)" id="serverTime">—</span>
+  </div>
+
+  <div class="toolbar">
+    <input type="search" id="q" placeholder="搜索 IP / 端口 / 账号…">
+    <label class="chk"><input type="checkbox" id="onlyHttps"> 只看支持 HTTPS</label>
+    <select id="size">
+      <option value="25">每页 25</option>
+      <option value="50" selected>每页 50</option>
+      <option value="100">每页 100</option>
+      <option value="200">每页 200</option>
+    </select>
+    <span style="color:var(--text-faint);font-size:12.5px" id="filterInfo"></span>
+  </div>
+
+  <div class="tablecard">
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:52px">#</th>
+            <th>代理</th>
+            <th style="width:78px">类型</th>
+            <th style="width:104px">来源</th>
+            <th style="width:66px;text-align:right">检查</th>
+            <th style="width:66px;text-align:right">失败</th>
+            <th style="width:150px">最后检查</th>
+            <th style="width:170px;text-align:right">操作</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td colspan="8" class="empty">加载中…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="pager" id="pager"></div>
+  </div>
+</div>
+
+<dialog id="dlg">
+  <div class="dh" id="dlgTitle">代理详情</div>
+  <div class="db">
+    <div class="mono-box" id="dlgProxy"></div>
+    <div class="kv">
+      <div class="k">类型</div><div id="dlgType"></div>
+      <div class="k">来源</div><div id="dlgSrc"></div>
+      <div class="k">检查次数</div><div id="dlgCheck"></div>
+      <div class="k">最后检查</div><div id="dlgTime"></div>
+    </div>
+    <div class="result wait" id="dlgResult">点「实测出口 IP」会通过这条代理真实发一次请求。</div>
+  </div>
+  <div class="df">
+    <button class="btn ghost" id="dlgCopy">复制代理</button>
+    <button class="btn" id="dlgDel">从池中删除</button>
+    <button class="btn primary" id="dlgTest">实测出口 IP</button>
+  </div>
+</dialog>
+
+<div id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var state = { page:1, size:50, q:"", https:false, total:0, current:null };
+
+  function $(id){ return document.getElementById(id); }
+
+  function toast(msg, ms){
+    var t = $("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function(){ t.classList.remove("show"); }, ms || 2200);
+  }
+
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  /* 把 user:pass@ip:port 拆成两段，认证部分弱化显示 */
+  function fmtProxy(p){
+    var at = p.lastIndexOf("@");
+    if (at === -1) return '<span class="ipport">' + esc(p) + '</span>';
+    return '<span class="auth">' + esc(p.slice(0, at)) + '@</span>' +
+           '<span class="ipport">' + esc(p.slice(at + 1)) + '</span>';
+  }
+
+  function get(url){
+    return fetch(url, { cache:"no-store" }).then(function(r){
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    });
+  }
+
+  function loadStats(){
+    return get("/dashboard/stats").then(function(d){
+      $("sTotal").textContent = d.count;
+      $("sHttps").textContent = d.https;
+      $("sHttp").textContent  = d.http;
+      $("sCheck").textContent = d.scheduler.last_check || "—";
+
+      var sc = d.scheduler;
+      $("dotSched").className = "dot " + (sc.running ? "ok" : "bad");
+      $("schedText").innerHTML = sc.running
+        ? '调度器 <b>运行中</b> <span style="color:var(--text-faint)">PID ' + sc.pid + '</span>'
+        : '<b style="color:var(--bad)">调度器未运行</b>';
+      $("nextRunText").textContent = sc.next_run ? "下次全量校验 " + sc.next_run : "尚未排期（首轮校验可能仍在进行）";
+      $("serverTime").textContent = "服务器时间 " + d.server_time;
+      $("subline").textContent = "共 " + d.count + " 条 · 来源 " +
+        Object.keys(d.sources).map(function(k){ return k + " " + d.sources[k]; }).join("、");
+    }).catch(function(e){
+      $("subline").textContent = "无法连接 API：" + e.message;
+      $("dotSched").className = "dot bad";
+    });
+  }
+
+  function loadList(){
+    var qs = "?page=" + state.page + "&size=" + state.size +
+             "&q=" + encodeURIComponent(state.q) +
+             "&https=" + (state.https ? "true" : "false");
+    return get("/dashboard/proxies" + qs).then(function(d){
+      state.total = d.total;
+      render(d);
+    }).catch(function(e){
+      $("tbody").innerHTML = '<tr><td colspan="8" class="empty">加载失败：' + esc(e.message) + '</td></tr>';
+    });
+  }
+
+  function render(d){
+    var tb = $("tbody");
+    if (!d.items.length){
+      tb.innerHTML = '<tr><td colspan="8" class="empty">没有匹配的代理</td></tr>';
+    } else {
+      var base = (d.page - 1) * d.size;
+      tb.innerHTML = d.items.map(function(p, i){
+        var id = base + i + 1;
+        return '<tr>' +
+          '<td class="num">' + id + '</td>' +
+          '<td class="px" title="' + esc(p.proxy) + '">' + fmtProxy(p.proxy) + '</td>' +
+          '<td>' + (p.https ? '<span class="tag https">HTTPS</span>' : '<span class="tag http">HTTP</span>') + '</td>' +
+          '<td><span class="tag src">' + esc(p.source) + '</span></td>' +
+          '<td class="num">' + p.check_count + '</td>' +
+          '<td class="num"' + (p.fail_count ? ' style="color:var(--bad);font-weight:600"' : '') + '>' + p.fail_count + '</td>' +
+          '<td class="tnum">' + esc(p.last_time || "—") + '</td>' +
+          '<td><div class="acts">' +
+            '<button class="btn sm" data-act="test" data-p="' + esc(p.proxy) + '">测速</button>' +
+            '<button class="btn sm" data-act="copy" data-p="' + esc(p.proxy) + '">复制</button>' +
+            '<button class="btn sm" data-act="del"  data-p="' + esc(p.proxy) + '">删除</button>' +
+          '</div></td>' +
+        '</tr>';
+      }).join("");
+    }
+
+    var pages = Math.max(1, Math.ceil(d.total / d.size));
+    $("filterInfo").textContent = state.q || state.https
+      ? "筛选后 " + d.total + " 条"
+      : "";
+
+    var html = '<button class="btn" data-page="1"' + (d.page <= 1 ? " disabled" : "") + '>首页</button>' +
+               '<button class="btn" data-page="' + (d.page - 1) + '"' + (d.page <= 1 ? " disabled" : "") + '>上一页</button>' +
+               '<span>第 <span class="now">' + d.page + '</span> / ' + pages + ' 页</span>' +
+               '<button class="btn" data-page="' + (d.page + 1) + '"' + (d.page >= pages ? " disabled" : "") + '>下一页</button>' +
+               '<button class="btn" data-page="' + pages + '"' + (d.page >= pages ? " disabled" : "") + '>末页</button>';
+    $("pager").innerHTML = html;
+  }
+
+  function reload(){ return Promise.all([loadStats(), loadList()]); }
+
+  /* ---------- 事件 ---------- */
+
+  $("btnRefresh").addEventListener("click", function(){
+    reload().then(function(){ toast("已刷新"); });
+  });
+
+  $("btnPick").addEventListener("click", function(){
+    get("/get/").then(function(d){
+      if (!d.proxy){ toast("池子里没有可用代理"); return; }
+      openDlg(d.proxy, d);
+    }).catch(function(e){ toast("取代理失败：" + e.message); });
+  });
+
+  var tmr;
+  $("q").addEventListener("input", function(){
+    clearTimeout(tmr);
+    tmr = setTimeout(function(){
+      state.q = $("q").value.trim();
+      state.page = 1;
+      loadList();
+    }, 260);
+  });
+
+  $("onlyHttps").addEventListener("change", function(){
+    state.https = this.checked;
+    state.page = 1;
+    loadList();
+  });
+
+  $("size").addEventListener("change", function(){
+    state.size = parseInt(this.value, 10);
+    state.page = 1;
+    loadList();
+  });
+
+  $("pager").addEventListener("click", function(e){
+    var b = e.target.closest("button[data-page]");
+    if (!b || b.disabled) return;
+    state.page = parseInt(b.dataset.page, 10);
+    loadList();
+    window.scrollTo({ top:0, behavior:"smooth" });
+  });
+
+  $("tbody").addEventListener("click", function(e){
+    var b = e.target.closest("button[data-act]");
+    if (!b) return;
+    var p = b.dataset.p, act = b.dataset.act;
+    if (act === "test"){ openDlg(p); }
+    if (act === "copy"){ copy(p); }
+    if (act === "del"){ del(p); }
+  });
+
+  function copy(text){
+    if (navigator.clipboard && window.isSecureContext){
+      navigator.clipboard.writeText(text).then(
+        function(){ toast("已复制：" + text.slice(0, 40)); },
+        function(){ toast("复制失败，请手动选择"); }
+      );
+    } else {
+      var ta = document.createElement("textarea");
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); toast("已复制"); }
+      catch(_) { toast("复制失败"); }
+      document.body.removeChild(ta);
+    }
+  }
+
+  function del(p){
+    if (!confirm("从池中删除这条代理？\n\n" + p)) return;
+    get("/delete/?proxy=" + encodeURIComponent(p)).then(function(){
+      toast("已删除");
+      reload();
+    }).catch(function(e){ toast("删除失败：" + e.message); });
+  }
+
+  /* ---------- 详情弹窗 ---------- */
+
+  var dlg = $("dlg");
+
+  function openDlg(proxy, info){
+    state.current = proxy;
+    $("dlgProxy").textContent = proxy;
+    $("dlgType").innerHTML  = info && info.https !== undefined
+      ? (info.https ? '<span class="tag https">HTTPS</span>' : '<span class="tag http">HTTP</span>') : "—";
+    $("dlgSrc").textContent = (info && info.source) || "—";
+    $("dlgCheck").textContent = info && info.check_count !== undefined ? info.check_count : "—";
+    $("dlgTime").textContent  = (info && info.last_time) || "—";
+    $("dlgResult").className = "result wait";
+    $("dlgResult").textContent = "点「实测出口 IP」会通过这条代理真实发一次请求。";
+    if (typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open","");
+  }
+
+  $("dlgCopy").addEventListener("click", function(){ if (state.current) copy(state.current); });
+
+  $("dlgDel").addEventListener("click", function(){
+    if (!state.current) return;
+    del(state.current);
+    dlg.close();
+  });
+
+  $("dlgTest").addEventListener("click", function(){
+    if (!state.current) return;
+    var btn = this;
+    btn.disabled = true;
+    $("dlgResult").className = "result wait";
+    $("dlgResult").textContent = "正在通过代理发请求…";
+    get("/dashboard/test?proxy=" + encodeURIComponent(state.current)).then(function(d){
+      if (d.ok){
+        $("dlgResult").className = "result ok";
+        $("dlgResult").innerHTML = "连通 ✓ 出口 IP <b>" + esc(d.exit_ip) + "</b> · 耗时 " + d.elapsed + "s" +
+          '<div style="margin-top:4px;color:#0b7a44;opacity:.8">' + esc(d.raw) + '</div>';
+      } else {
+        $("dlgResult").className = "result bad";
+        $("dlgResult").innerHTML = "不通 ✗ " + esc(d.error) + (d.elapsed ? " · 耗时 " + d.elapsed + "s" : "");
+      }
+    }).catch(function(e){
+      $("dlgResult").className = "result bad";
+      $("dlgResult").textContent = "请求失败：" + e.message;
+    }).then(function(){ btn.disabled = false; });
+  });
+
+  /* ---------- 启动 ---------- */
+
+  reload();
+  setInterval(loadStats, 15000);
+})();
+</script>
+</body>
+</html>

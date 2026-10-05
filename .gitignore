@@ -11,3 +11,9 @@ docs/specs/
 .coverage
 .pytest_cache/
 htmlcov/
+# 本地部署运行时产物（日志、PID、守护进程输出、虚拟环境）
+log/
+.venv/
+# 本地代理清单（含明文账号密码），严禁入库
+all_accounts_proxies*.txt
+.workbuddy-ai/
