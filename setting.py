@@ -37,7 +37,9 @@ PORT = 5010
 # example:
 #      Redis: redis://:password@ip:port/db
 #      Ssdb:  ssdb://:password@ip:port
-DB_CONN = 'redis://@127.0.0.1:6379/0'
+# 2026/10/05：本地 Redis（D:\software\Redis-x64-3.0.504）需要密码 123456，
+# 故在此填入密码，否则 proxy_pool 无法连接本机 use_proxy。
+DB_CONN = 'redis://:123456@127.0.0.1:6379/0'
 
 # proxy table name
 TABLE_NAME = 'use_proxy'

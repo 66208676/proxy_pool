@@ -268,7 +268,9 @@ def getCount():
 
 def runFlask():
     if platform.system() == "Windows":
-        app.run(host=conf.serverHost, port=conf.serverPort)
+        # 默认单线程: 8 个 worker 并发打 /get/ 会被串行化, 响应超爬虫侧 timeout=3s
+        # 即触发"代理池不可用, 本次直连"。threaded=True 让每请求开一线程, 并发取代理不再排队。
+        app.run(host=conf.serverHost, port=conf.serverPort, threaded=True)
     else:
         import gunicorn.app.base
 
