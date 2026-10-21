@@ -19,6 +19,7 @@ import random
 import time
 
 from handler.logHandler import LogHandler
+from util.fetchProxy import getFetchProxies
 
 requests.packages.urllib3.disable_warnings()
 
@@ -72,9 +73,15 @@ class WebRequest(object):
         headers = self.header
         if header and isinstance(header, dict):
             headers.update(header)
+        # 抓取线程才会拿到出口代理上下文；API / 代理校验线程拿到 None，
+        # 等价于不传 proxies，保持原有行为不变。
+        proxies = kwargs.pop("proxies", None)
+        if proxies is None:
+            proxies = getFetchProxies()
         while True:
             try:
-                self.response = requests.get(url, headers=headers, timeout=timeout, *args, **kwargs)
+                self.response = requests.get(url, headers=headers, timeout=timeout,
+                                             proxies=proxies, *args, **kwargs)
                 return self
             except Exception as e:
                 self.log.error("requests: %s error: %s" % (url, str(e)))
@@ -99,9 +106,13 @@ class WebRequest(object):
         headers = self.header
         if header and isinstance(header, dict):
             headers.update(header)
+        proxies = kwargs.pop("proxies", None)
+        if proxies is None:
+            proxies = getFetchProxies()
         while True:
             try:
-                self.response = requests.post(url, headers=headers, timeout=timeout, *args, **kwargs)
+                self.response = requests.post(url, headers=headers, timeout=timeout,
+                                              proxies=proxies, *args, **kwargs)
                 return self
             except Exception as e:
                 self.log.error("requests: %s error: %s" % (url, str(e)))

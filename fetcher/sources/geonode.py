@@ -24,13 +24,24 @@ class GeonodeFetcher(BaseFetcher):
 
     name = "geonode"
     url = "https://geonode.com/"
+    overseas = True
+
+    PAGES = 3  # limit=100，抓 3 页
 
     def fetch(self):
+        found = []
+        for page in range(1, self.PAGES + 1):
+            found += self._fetch_page(page)
+        for proxy in self.yieldUniqueProxies(found):
+            yield proxy
+
+    def _fetch_page(self, page):
         url = ("https://proxylist.geonode.com/api/proxy-list?"
-               "filterLastChecked=10&page=1&limit=100&sort_by=lastChecked&sort_type=desc")
-        r = WebRequest().get(url, timeout=5, retry_time=1, verify=False)
+               "filterLastChecked=10&page=%d&limit=100"
+               "&sort_by=lastChecked&sort_type=desc" % page)
+        r = WebRequest().get(url, timeout=10, retry_time=1, verify=False)
+        proxies = []
         try:
-            proxies = []
             for item in r.json.get("data", []):
                 ip = item.get("ip", "")
                 port = item.get("port", "")
@@ -38,10 +49,9 @@ class GeonodeFetcher(BaseFetcher):
                     proxies.append("%s:%s" % (ip, port))
             if not proxies:
                 proxies = self.parseProxiesFromText(r.text)
-            for proxy in self.yieldUniqueProxies(proxies):
-                yield proxy
         except Exception as e:
             logger.error("ProxyFetch - geonode: %s" % e)
+        return proxies
 
 
 if __name__ == '__main__':

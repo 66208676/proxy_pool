@@ -23,6 +23,7 @@ class FreeVPNNodeFetcher(BaseFetcher):
 
     name = "freevpnnode"
     url = "https://cn.freevpnnode.com"
+    overseas = False
 
     def fetch(self):
         url = "https://cn.freevpnnode.com/free-proxy/"

@@ -25,6 +25,10 @@ class BaseFetcher(object):
     # ---- 子类可覆盖 ----
     enabled = True   # 是否启用，设为 False 可禁用该源
 
+    # 该源是否在国外：True = 抓取时走出口代理(upstream)，False = 直连。
+    # 仅影响抓取阶段的 WebRequest，不影响代理校验与 API。
+    overseas = False
+
     def fetch(self):
         """爬取代理，yield "host:port" 字符串"""
         raise NotImplementedError

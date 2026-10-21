@@ -23,6 +23,7 @@ class DaiLi66Fetcher(BaseFetcher):
 
     name = "daili66"
     url = "https://www.66daili.com"
+    overseas = False
 
     enabled = True
 

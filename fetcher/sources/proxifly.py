@@ -24,6 +24,7 @@ class ProxiFlyFetcher(BaseFetcher):
 
     name = "proxifly"
     url = "https://proxifly.dev/"
+    overseas = True
 
     enabled = True  # 是否启用
 

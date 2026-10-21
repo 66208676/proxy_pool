@@ -21,6 +21,7 @@ class KxdailiFetcher(BaseFetcher):
 
     name = "kxdaili"
     url = "http://www.kxdaili.com/dailiip.html"
+    overseas = False
 
     def fetch(self):
         target_urls = [

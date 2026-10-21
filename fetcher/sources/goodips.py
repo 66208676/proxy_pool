@@ -21,6 +21,7 @@ class GoodipsFetcher(BaseFetcher):
 
     name = "goodips"
     url = "https://www.goodips.com/"
+    overseas = True
 
     def fetch(self):
         url = "https://www.goodips.com/"

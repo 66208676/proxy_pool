@@ -17,3 +17,5 @@ log/
 # 本地代理清单（含明文账号密码），严禁入库
 all_accounts_proxies*.txt
 .workbuddy-ai/
+# 本地临时调试脚本/日志（含明文密码、随手统计脚本），严禁入库
+tmp/

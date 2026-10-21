@@ -24,6 +24,7 @@ class ZdayeFetcher(BaseFetcher):
 
     name = "zdaye"
     url = "https://www.zdaye.com/dayProxy.html"
+    overseas = False
 
     def fetch(self):
         start_url = "https://www.zdaye.com/free/"

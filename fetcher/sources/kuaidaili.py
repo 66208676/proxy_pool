@@ -23,8 +23,11 @@ class KuaidailiFetcher(BaseFetcher):
 
     name = "kuaidaili"
     url = "https://www.kuaidaili.com"
+    overseas = False
 
-    def fetch(self, page_count=1):
+    # 每页约 12 条、2 个 pattern，默认抓 3 页（约 72 条）；
+    # 注意页面间必须 sleep(1)，否则第二条请求取不到数据。
+    def fetch(self, page_count=3):
         url_pattern = [
             'https://www.kuaidaili.com/free/inha/{}/',
             'https://www.kuaidaili.com/free/intr/{}/',

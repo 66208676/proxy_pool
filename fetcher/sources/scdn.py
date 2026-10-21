@@ -28,14 +28,24 @@ class ScdnFetcher(BaseFetcher):
 
     name = "scdn"
     url = "https://proxy.scdn.io/"
+    overseas = True
+
+    PAGES = 3  # per_page=100，抓 3 页
 
     def fetch(self):
+        found = []
+        for page in range(1, self.PAGES + 1):
+            found += self._fetch_page(page)
+        for proxy in self.yieldUniqueProxies(found):
+            yield proxy
+
+    def _fetch_page(self, page):
         url = ("https://proxy.scdn.io/get_proxies.php?"
-               "protocol=&country=&per_page=100&page=1")
-        r = WebRequest().get(url, timeout=5, retry_time=1, verify=False)
+               "protocol=&country=&per_page=100&page=%d" % page)
+        r = WebRequest().get(url, timeout=10, retry_time=1, verify=False)
+        proxies = []
         try:
             data = r.json
-            proxies = []
             table_html = data.get("table_html") if isinstance(data, dict) else ""
             if table_html:
                 tree = etree.HTML("<table>%s</table>" % table_html)
@@ -56,10 +66,9 @@ class ScdnFetcher(BaseFetcher):
                         proxies.append("%s:%s" % (ip, port))
             if not proxies:
                 proxies = self.parseProxiesFromText(r.text)
-            for proxy in self.yieldUniqueProxies(proxies):
-                yield proxy
         except Exception as e:
             logger.error("ProxyFetch - scdn: %s" % e)
+        return proxies
 
 
 if __name__ == '__main__':

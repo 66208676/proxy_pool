@@ -23,6 +23,7 @@ class RoundProxiesFetcher(BaseFetcher):
 
     name = "roundproxies"
     url = "https://roundproxies.com/free-proxy-list"
+    overseas = True
 
     enabled = True
 
